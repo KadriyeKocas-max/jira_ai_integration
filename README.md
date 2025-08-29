@@ -1,4 +1,3 @@
-# jira_ai_integration
 # AI-Powered Jira Integration
 
 **Status:** In Progress  
