@@ -1,0 +1,52 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<!-- Confetti JS için CDN -->
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
+
+<div class="flex items-center justify-center min-h-screen bg-gradient-to-r from-purple-500 via-pink-500 to-orange-400">
+  <div class="bg-white shadow-2xl rounded-3xl p-12 text-center max-w-lg animate-fadeIn">
+    <h1 class="text-4xl font-extrabold text-gray-900 mb-4">You're amazing, {{ worker_name }}! 🌟</h1>
+    <p class="text-lg text-gray-700 mb-6">
+      Your effort today makes a huge difference! Keep going—you’re unstoppable! 💪
+    </p>
+    <a href="{% url 'daily_report' %}" class="bg-pink-500 hover:bg-pink-600 text-white px-6 py-3 rounded-full shadow-lg transition duration-300 font-semibold">
+      Submit Another Report
+    </a>
+  </div>
+</div>
+
+<script>
+  // Confetti effect
+  const duration = 5 * 1000; // 5 saniye
+  const animationEnd = Date.now() + duration;
+  const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 999 };
+
+  function randomInRange(min, max) {
+    return Math.random() * (max - min) + min;
+  }
+
+  const interval = setInterval(function() {
+    const timeLeft = animationEnd - Date.now();
+
+    if (timeLeft <= 0) {
+      return clearInterval(interval);
+    }
+
+    const particleCount = 50 * (timeLeft / duration);
+    // Random X konumu
+    confetti(Object.assign({}, defaults, { particleCount, origin: { x: Math.random(), y: Math.random() - 0.2 } }));
+  }, 250);
+</script>
+
+<style>
+  .animate-fadeIn {
+    animation: fadeIn 1.2s ease-out;
+  }
+
+  @keyframes fadeIn {
+    0% { opacity: 0; transform: translateY(-20px); }
+    100% { opacity: 1; transform: translateY(0); }
+  }
+</style>
+{% endblock %}

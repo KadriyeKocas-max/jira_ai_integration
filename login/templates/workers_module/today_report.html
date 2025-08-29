@@ -1,0 +1,123 @@
+<!DOCTYPE html> 
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Daily Report</title>
+<style>
+    body {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        margin: 0;
+        height: 100vh;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        background: linear-gradient(135deg, #001f3f, #ff851b);
+        overflow: hidden;
+    }
+    .form-container {
+        background: rgba(255, 255, 255, 0.95);
+        padding: 40px;
+        border-radius: 15px;
+        box-shadow: 0px 8px 20px rgba(0,0,0,0.3);
+        width: 100%;
+        max-width: 500px;
+        text-align: center;
+        animation: fadeIn 1s ease-in-out;
+        position: relative;
+    }
+    h1 { color: #001f3f; margin-bottom: 20px; }
+    textarea {
+        width: 100%; height: 150px; padding: 15px;
+        border: 2px solid #001f3f; border-radius: 10px;
+        font-size: 16px; resize: none; outline: none;
+        transition: border-color 0.3s;
+    }
+    textarea:focus { border-color: #ff851b; }
+    button {
+        margin-top: 20px; padding: 12px 30px;
+        background: linear-gradient(90deg, #001f3f, #ff851b);
+        color: white; border: none; border-radius: 30px;
+        font-size: 16px; cursor: pointer;
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+    button:hover { transform: scale(1.05); box-shadow: 0px 5px 15px rgba(0,0,0,0.2); }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
+
+    #thankYouModal {
+        display: none; position: fixed; top: 50%; left: 50%;
+        transform: translate(-50%, -50%); background: white;
+        color: #333; padding: 30px 40px; border-radius: 16px;
+        text-align: center; box-shadow: 0 8px 32px rgba(0,0,0,0.25);
+        z-index: 1000; width: 90%; max-width: 400px;
+    }
+    #thankYouModal h2 { margin-top: 0; color: #ff851b; }
+    #thankYouModal button.close {
+        position: absolute; top: 10px; right: 15px;
+        background: transparent; border: none; font-size: 20px;
+        cursor: pointer; color: #ff851b;
+    }
+    #confetti-canvas {
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        pointer-events: none; z-index: 999;
+    }
+</style>
+</head>
+<body>
+
+<div class="form-container">
+    <h1>Dear {{ user.username }},<br>What did you do today?</h1>
+    <form id="dailyReportForm" method="post" action="{% url 'workers:submit-report' %}">
+        {% csrf_token %}
+        <textarea name="report" placeholder="Write your daily report here..." required></textarea>
+        <br>
+        <button type="submit">Submit Report</button>
+    </form>
+</div>
+
+<div id="thankYouModal">
+    <button class="close">&times;</button>
+    <h2>You're amazing!</h2>
+    <p>Thank you for submitting your daily report 🎉</p>
+</div>
+
+<canvas id="confetti-canvas"></canvas>
+
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
+<script>
+    const form = document.getElementById('dailyReportForm');
+    const modal = document.getElementById('thankYouModal');
+    const closeBtn = document.querySelector('#thankYouModal .close');
+
+    form.addEventListener('submit', function(e){
+        e.preventDefault();
+
+        const formData = new FormData(form);
+
+        fetch(form.action, {
+            method: "POST",
+            body: formData,
+            headers: { "X-Requested-With": "XMLHttpRequest" }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === "success") {
+                modal.style.display = 'block';
+
+                const myConfetti = confetti.create(document.getElementById('confetti-canvas'), { resize: true });
+                myConfetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+
+                setTimeout(() => {
+                    window.location.href = "{% url 'workers:home' %}";
+                }, 1000);
+            } else {
+                alert("Error: " + (data.message || "Unable to save report."));
+            }
+        })
+        .catch(err => console.error(err));
+    });
+
+    closeBtn.onclick = () => { modal.style.display = 'none'; };
+</script>
+</body>
+</html>
