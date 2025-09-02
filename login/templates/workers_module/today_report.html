@@ -69,7 +69,7 @@
     <h1>Dear {{ user.username }},<br>What did you do today?</h1>
     <form id="dailyReportForm" method="post" action="{% url 'workers:submit-report' %}">
         {% csrf_token %}
-        <textarea name="report" placeholder="Write your daily report here..." required></textarea>
+        <textarea name="report_text" placeholder="Write your daily report here..." required></textarea>
         <br>
         <button type="submit">Submit Report</button>
     </form>
