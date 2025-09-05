@@ -10,10 +10,11 @@ _jira_client = None
 
 # AI action → Jira transition mapping
 ACTION_TO_TRANSITION = {
-    "done": "Done",
-    "in_progress": "In Progress",
-    "to do": "To Do",
+    "done": ["Done", "Complete", "Resolve", "Close", "DONE"],
+    "in_progress": ["In Progress", "Start Progress"],
+    "to do": ["To Do", "Open"]
 }
+
 
 def get_jira_client():
     """Singleton Jira client oluşturur."""
@@ -31,7 +32,7 @@ def get_jira_client():
 
 
 def get_jira_tasks_for_user(user):
-    """Kullanıcıya atanan Jira tasklarını getirir."""
+    """Kullanıcıya atanan Jira tasklarını getirir (summary + description + status)."""
     jira = get_jira_client()
     if jira is None:
         return []
@@ -46,7 +47,7 @@ def get_jira_tasks_for_user(user):
         issues = jira.search_issues(
             jql,
             maxResults=100,
-            fields="summary,status,assignee,project"
+            fields="summary,description,status,assignee,project"
         )
     except Exception as e:
         logger.error(f"Jira taskları alınamadı: {e}")
@@ -56,55 +57,62 @@ def get_jira_tasks_for_user(user):
         {
             "key": issue.key,
             "summary": issue.fields.summary,
-            "status": issue.fields.status.name
+            "description": getattr(issue.fields, "description", "") or "",
+            "status": issue.fields.status.name,
         }
         for issue in issues
     ]
 
 
-def get_transition_id_by_name(issue_key, transition_name):
-    """Bir issue için verilen transition name'e karşılık gelen ID'yi döner."""
+def get_transition_id_by_name(issue_key, action_key):
+    """
+    Bir issue için verilen action_key'e (ör: 'done', 'in_progress') uygun transition ID'yi döner.
+    """
     jira = get_jira_client()
     if jira is None:
         return None
 
-    transitions = jira.transitions(issue_key)  # direkt Jira’dan çekiyoruz
+    transitions = jira.transitions(issue_key)
+    logger.info(f"{issue_key} için mevcut transitionlar: {[t['name'] for t in transitions]}")
+
+    # action_key → olası transition isimleri
+    possible_names = ACTION_TO_TRANSITION.get(action_key.lower(), [])
+    if isinstance(possible_names, str):
+        possible_names = [possible_names]
+
     for t in transitions:
-        if t["name"].lower() == transition_name.lower():
+        t_name = t["name"].lower()
+        if any(p.lower() == t_name for p in possible_names):
             return t["id"]
 
     return None
 
 
 
+
+
 def move_task(task_key, action):
     """
     Jira task'ını verilen AI aksiyonuna göre taşır.
-    action: "in_progress" → "In Progress"
-            "done"        → "Done"
-            "to do"       → "To Do"
     """
     jira = get_jira_client()
     if jira is None:
         return False
 
-    transition_name = ACTION_TO_TRANSITION.get(action.lower())
-    if not transition_name:
-        logger.error(f"Geçersiz action: {action}")
-        return False
-
-    transition_id = get_transition_id_by_name(task_key, transition_name)
+    transition_id = get_transition_id_by_name(task_key, action)
     if not transition_id:
-        logger.warning(f"{task_key} için '{transition_name}' transition bulunamadı.")
+        logger.warning(f"{task_key} için '{action}' transition bulunamadı.")
         return False
 
     try:
         jira.transition_issue(task_key, transition_id)
-        logger.info(f"{task_key} → {transition_name} taşındı.")
+        logger.info(f"{task_key} → {action} taşındı.")
         return True
     except Exception as e:
         logger.error(f"Task taşınamadı ({task_key}): {e}")
         return False
+
+
 
 
 
@@ -120,3 +128,14 @@ def add_comment(task_key, comment):
     except Exception as e:
         logger.error(f"Yorum eklenemedi ({task_key}): {e}")
         return False
+
+def get_worker_tasks(jira_username):
+    issues = jira.search_issues(f'assignee={jira_username} AND status!=Done', maxResults=50)
+    tasks = []
+    for issue in issues:
+        tasks.append({
+            "key": issue.key,
+            "title": issue.fields.summary,
+            "description": issue.fields.description
+        })
+    return tasks

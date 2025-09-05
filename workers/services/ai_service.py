@@ -1,89 +1,119 @@
-# workers/services/ai_service.py
-import os
+# ai_service.py — advanced, context-aware
+
 import json
 import re
 import logging
 from openai import OpenAI
-from django.conf import settings
-from .jira_service import move_task
 
 logger = logging.getLogger(__name__)
+client = OpenAI()
 
-# OpenAI client (öncelik settings, yoksa env)
-api_key = getattr(settings, "OPENAI_API_KEY", None) or os.getenv("OPENAI_API_KEY")
-client = OpenAI(api_key=api_key)
-
-
-def analyze_task_text(text):
+def extract_subtasks_from_description(description, task_key=None, max_items=2):
     """
-    OpenAI ile text analizi yapar ve task için aksiyonları döndürür.
-    Çıktı örneği:
-    [
-        {"task_key": "NSDT-001", "action": "in_progress"},
-        {"task_key": "NSDT-002", "action": "done"}
-    ]
+    Basit fallback:
+    - Cümlelere böl
+    - Anahtar kelimeleri ('talep', 'hazırla', 'sunulacak', 'rapor') bul
+    - Mantıklı top-level görevleri çıkar
     """
+    max_items = int(max_items)
+    # Satırlara böl
+    lines = re.split(r'[\r\n]+', description)
+    candidates = []
+    for line in lines:
+        s = line.strip()
+        if s:
+            norm = re.sub(r'\s+', ' ', s).strip()
+            candidates.append(norm)
+    
+    if not candidates:
+        candidates = [x.strip() for x in re.split(r'[.?!]\s*', description) if x.strip()]
+    
+    # Öncelikli cümleler
+    priority = []
+    for c in candidates:
+        if re.search(r'\b(talep|hazırla|sunulacak|rapor|erişim|eğitim)\b', c, flags=re.I):
+            priority.append(c)
+    
+    chosen = priority[:max_items] if priority else candidates[:max_items]
+    
+    results = []
+    for c in chosen:
+        r = c.rstrip('.').strip()
+        if len(r) > 160:
+            r = r[:160].rsplit(' ', 1)[0] + '...'
+        results.append({"content": r, "is_done": False})
+    
+    return {"subtasks": results}
+
+
+def update_subtasks_with_report(task_key, description, max_subtasks=2, model="gpt-4o-mini"):
+    """
+    AI ile description’dan **context-aware top-level deliverable** çıkartır.
+    Döndürür: {"task_key": task_key, "subtasks": [{"content": "...", "is_done": False}, ...]}
+    """
+    # enforce integer
+    if not isinstance(max_subtasks, int):
+        try:
+            max_subtasks = int(max_subtasks)
+        except:
+            max_subtasks = 2
+
+    # Prompt — context-aware
     prompt = f"""
-    Kullanıcı şu işleri raporladı: "{text}".
+You are a task-summarization assistant. GIVEN a Jira task description, OUTPUT **only** a JSON object with up to {max_subtasks} top-level deliverable subtasks.
+Rules:
+- Consider the whole description context to identify top-level deliverables.
+- Some subtasks may depend on earlier sentences; infer logically.
+- Do not break into too many small steps; aim for 1-2 concise items per task.
+- Return JSON only, no explanation or markdown.
+- Use concise, imperative noun-phrase style.
 
-    Eğer Jira task’larıyla ilgili bir güncelleme yapmamız gerekiyorsa,
-    her task için şu formatta JSON üret:
+Return JSON exactly:
+{{
+  "task_key": "{task_key}",
+  "subtasks": [
+    {{ "content": "..." }}
+  ]
+}}
 
-    [{{"task_key": "ABC-123", "action": "in_progress"}}, ...]
-
-    Action değerleri yalnızca: "in_progress" veya "done".
-    Sadece geçerli JSON döndür.
-    """
+Description:
+\"\"\"{description}\"\"\"
+"""
 
     try:
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=300
+            model=model,
+            messages=[
+                {"role": "system", "content": "You are a concise task summarizer. Return only JSON."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0,
+            max_tokens=400,
         )
 
         content = response.choices[0].message.content.strip()
-
-        # Kod bloklarını temizle (```json ... ```)
+        # Kod bloklarını temizle
         content_clean = re.sub(r"^```(?:json)?|```$", "", content, flags=re.MULTILINE).strip()
+        # JSON blok yakala
+        m = re.search(r'(\{.*\})', content_clean, flags=re.DOTALL)
+        json_text = m.group(1) if m else content_clean
+        data = json.loads(json_text)
 
-        return json.loads(content_clean)
+        # Normalize
+        subs = data.get("subtasks", []) if isinstance(data, dict) else []
+        subs = subs[:max_subtasks]
+        normalized = []
+        for s in subs:
+            c = s.get("content") if isinstance(s, dict) else str(s)
+            c = c.strip().rstrip('.')
+            if c and c[0].islower():
+                c = c[0].upper() + c[1:]
+            normalized.append({"content": c, "is_done": False})
 
-    except json.JSONDecodeError as e:
-        logger.error(f"AI JSON parse hatası: {e} | Output: {content}")
-        return []
+        return {"task_key": task_key, "subtasks": normalized}
+
     except Exception as e:
-        logger.error(f"OpenAI çağrı hatası: {e}")
-        return []
-
-
-def analyze_and_update_jira(report_text, jira_tasks):
-    """
-    AI analizi yapar ve Jira task’larını günceller.
-    """
-    actions = []
-    new_local_tasks = []
-
-    ai_results = analyze_task_text(report_text)
-
-    # Jira task’larını dict olarak hızlı erişim için key->status
-    jira_dict = {t["key"]: t for t in jira_tasks}
-
-    for result in ai_results:
-        task_key = result.get("task_key")
-        action = result.get("action")
-
-        if not task_key or not action:
-            continue
-
-        if task_key in jira_dict:
-            # Artık move_task kendi mapping’ini yapıyor (in_progress → In Progress, done → Done)
-            success = move_task(task_key, action)
-            actions.append({"task_key": task_key, "action": action, "success": success})
-        else:
-            # Jira’da yok → local kaydet
-            new_local_tasks.append({
-                "description": result.get("description", report_text)
-            })
-
-    return {"actions": actions, "new_local_tasks": new_local_tasks}
+        logger.warning(f"AI parse failed: {e} | falling back")
+        # fallback
+        fallback = extract_subtasks_from_description(description, max_items=max_subtasks)
+        return {"task_key": task_key, "subtasks": fallback}

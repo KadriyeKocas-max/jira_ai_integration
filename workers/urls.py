@@ -12,4 +12,5 @@ urlpatterns = [
     path("jira/", views.jira_profile, name="jira_profile"),
     path('progress/', views.view_progress, name='view_progress'),
     path('team/', views.view_team, name='view_team'),
+    path("progress/", views.view_progress, name="view-progress"),
 ]
