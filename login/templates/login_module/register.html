@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!DOCTYPE html> 
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -68,7 +68,8 @@
 
         input[type="text"],
         input[type="email"],
-        input[type="password"] {
+        input[type="password"],
+        select {
             width: 100%;
             padding: 12px;
             margin-bottom: 16px;
@@ -82,10 +83,15 @@
             box-sizing: border-box;
         }
 
-        input:focus {
+        input:focus, select:focus {
             outline: none;
             background: rgba(255, 255, 255, 0.3);
             box-shadow: 0 0 8px #3498db;
+        }
+
+        select option {
+            background: #1f1c2c;
+            color: white;
         }
 
         button {
@@ -151,16 +157,26 @@
             {% endfor %}
         {% endif %}
 
- 	<form method="post">
-    	    {% csrf_token %}
+        <form method="post">
+            {% csrf_token %}
             <input type="text" name="username" placeholder="Username" required>
             <input type="email" name="email" placeholder="Email" required>
             <input type="password" name="password1" placeholder="Password" required>
             <input type="password" name="password2" placeholder="Confirm Password" required>
 
             <select name="role" required>
+                <option value="" disabled selected>Select Role</option>
                 <option value="worker">Worker</option>
                 <option value="manager">Manager</option>
+            </select>
+
+            <select name="expertise" required>
+                <option value="" disabled selected>Select Expertise</option>
+                <option value="W&B">Weight & Balance</option>
+                <option value="Route">Route</option>
+                <option value="Terrain">Terrain</option>
+                <option value="Navigation">Navigation</option>
+                <option value="Fuel">Fuel</option>
             </select>
 
             <button type="submit">Register</button>

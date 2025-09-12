@@ -1,5 +1,6 @@
 from django import forms
 from .models import TodayReport
+from workers.models import WorkerProfile
 
 class DailyReportForm(forms.ModelForm):
     jira_task_key = forms.CharField(required=False)  # Jira issue key, örn: PROJ-123
@@ -15,3 +16,8 @@ class DailyReportForm(forms.ModelForm):
                 'rows': 5,
             }),
         }
+
+class WorkerProfileForm(forms.ModelForm):
+    class Meta:
+        model = WorkerProfile
+        fields = ["phone_number", "department", "notes"]  # sadece kullanıcıya açık alanlar

@@ -1,4 +1,3 @@
-"""{% extends "base.html" %}
 {% block content %}
 <!DOCTYPE html>
 <html lang="en">
@@ -13,10 +12,10 @@
       min-height: 100vh;
     }
     .form-container {
-      max-width: 500px;
+      max-width: 550px;
       margin: 4rem auto;
       background: #fff;
-      padding: 2rem 2.5rem;
+      padding: 2rem 3rem;
       border-radius: 16px;
       box-shadow: 0 8px 24px rgba(0,0,0,0.1);
     }
@@ -24,18 +23,25 @@
       text-align: center;
       font-weight: 700;
       color: #e67e22;
-      margin-bottom: 1.5rem;
+      margin-bottom: 2rem;
+    }
+    label {
+      font-weight: 600;
+    }
+    input[readonly] {
+      background-color: #f8f9fa !important;
     }
     .btn-save {
       background-color: #e67e22;
       border: none;
+      font-weight: 600;
     }
     .btn-save:hover {
       background-color: #d35400;
     }
     .back-link {
       display: inline-block;
-      margin-top: 1rem;
+      margin-top: 1.5rem;
       color: #e67e22;
       font-weight: 600;
       text-decoration: none;
@@ -50,33 +56,45 @@
 <body>
 
 <div class="form-container">
-  <h2>Update Profile</h2>
+  <h2>My Profile</h2>
   <form method="post">
     {% csrf_token %}
+
     <div class="mb-3">
-      {{ form.first_name.label_tag }}  
-      {{ form.first_name }}
+      {{ form.first_name.label_tag }}
+      <input type="text" name="{{ form.first_name.name }}" value="{{ form.first_name.value }}" class="form-control">
     </div>
+
     <div class="mb-3">
-      {{ form.last_name.label_tag }}  
-      {{ form.last_name }}
+      {{ form.last_name.label_tag }}
+      <input type="text" name="{{ form.last_name.name }}" value="{{ form.last_name.value }}" class="form-control">
     </div>
+
     <div class="mb-3">
-      {{ form.email.label_tag }}  
-      {{ form.email }}
+      {{ form.phone_number.label_tag }}
+      <input type="text" name="{{ form.phone_number.name }}" value="{{ form.phone_number.value }}" class="form-control">
     </div>
+
+
+    <!-- Jira’dan gelen readonly alanlar -->
+    <div class="mb-3">
+      <label>Email (Jira)</label>
+      <input type="text" class="form-control" value="{{ profile.email }}" readonly>
+    </div>
+
+    <div class="mb-3">
+      <label>Display Name (Jira)</label>
+      <input type="text" class="form-control" value="{{ profile.display_name }}" readonly>
+    </div>
+
     <button type="submit" class="btn btn-save w-100">Save Changes</button>
   </form>
+
   <div class="text-center">
-    <a href="{% url 'workers_home' %}" class="back-link">← Back to Dashboard</a>
+    <a href="{% url 'workers:workers-home' %}" class="back-link">← Back to Dashboard</a>
   </div>
 </div>
 
 </body>
 </html>
 {% endblock %}
-"""
-<h2>My Profile</h2>
-<p>Name: {{ profile.user.first_name }} {{ profile.user.last_name }}</p>
-<p>Email: {{ profile.user.email }}</p>
-<p>Phone: {{ profile.phone_number }}</p>

@@ -28,7 +28,7 @@ from decouple import config
 JIRA_EMAIL = config("JIRA_EMAIL")
 JIRA_API_TOKEN = config("JIRA_API_TOKEN")
 JIRA_URL = config("JIRA_URL")
-MY_JIRA_PROJECTS = ["SK", "OFI", "NSDT"]
+MY_JIRA_PROJECTS = config("MY_JIRA_PROJECTS").split(",")
 
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.

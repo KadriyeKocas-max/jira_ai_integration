@@ -1,0 +1,14 @@
+{% for td in task_details %}
+  <div class="task-card">
+    <h3>{{ td.task.title }} ({{ td.task.jira_key }})</h3>
+    <p>Status: {{ td.action }} | Progress: {{ td.progress }}%</p>
+    <ul>
+      {% for st in td.subtasks %}
+        <li>
+          <input type="checkbox" {% if st.is_done %}checked{% endif %} disabled>
+          {{ st.content }}
+        </li>
+      {% endfor %}
+    </ul>
+  </div>
+{% endfor %}

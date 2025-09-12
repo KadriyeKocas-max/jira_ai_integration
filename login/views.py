@@ -60,13 +60,12 @@ def register_view(request):
         password1 = request.POST.get("password1")
         password2 = request.POST.get("password2")
         role = request.POST.get("role")
+        expertise = request.POST.get("expertise")  # yeni alan
 
-        # şifreler uyuşuyor mu?
         if password1 != password2:
             messages.error(request, "Şifreler uyuşmuyor!")
             return redirect("login:register")
 
-        # username veya email zaten var mı?
         if User.objects.filter(username=username).exists():
             messages.error(request, "Bu kullanıcı adı zaten alınmış.")
             return redirect("login:register")
@@ -74,18 +73,16 @@ def register_view(request):
             messages.error(request, "Bu e-posta zaten kayıtlı.")
             return redirect("login:register")
 
-        # kullanıcı oluştur
         user = User.objects.create_user(username=username, email=email, password=password1)
         user.save()
 
-        # profil ile role bağla
-        UserProfile.objects.create(user=user, role=role)
+        # profil oluştururken uzmanlık alanını da kaydet
+        UserProfile.objects.create(user=user, role=role, expertise=expertise)
 
         messages.success(request, "Kayıt başarılı! Giriş yapabilirsiniz.")
         return redirect("login:login")
 
     return render(request, "login_module/register.html")
-
 
 def profile_redirect(request):
     """Profil ikonuna tıklandığında yönlendirme"""

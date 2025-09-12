@@ -1,5 +1,4 @@
 # workers/services/jira_service.py
-import os
 import logging
 from jira import JIRA
 from django.conf import settings
@@ -32,7 +31,10 @@ def get_jira_client():
 
 
 def get_jira_tasks_for_user(user):
-    """Kullanıcıya atanan Jira tasklarını getirir (summary + description + status)."""
+    """
+    Kullanıcıya ait Jira tasklarını getirir (summary + description + status).
+    - Assignee veya Reporter olarak kullanıcıya ait task’leri döner.
+    """
     jira = get_jira_client()
     if jira is None:
         return []
@@ -42,11 +44,11 @@ def get_jira_tasks_for_user(user):
         logger.warning("MY_JIRA_PROJECTS ayarlarda tanımlı değil.")
         return []
 
-    jql = f'assignee = "{user.email}" AND project in ({",".join(projects)}) ORDER BY created DESC'
+    jql = f'(assignee = "{user.email}" OR reporter = "{user.email}") AND project in ({",".join(projects)}) ORDER BY created DESC'
     try:
         issues = jira.search_issues(
             jql,
-            maxResults=100,
+            maxResults=200,
             fields="summary,description,status,assignee,project"
         )
     except Exception as e:
@@ -65,9 +67,7 @@ def get_jira_tasks_for_user(user):
 
 
 def get_transition_id_by_name(issue_key, action_key):
-    """
-    Bir issue için verilen action_key'e (ör: 'done', 'in_progress') uygun transition ID'yi döner.
-    """
+    """Bir issue için verilen action_key'e uygun transition ID’yi döner."""
     jira = get_jira_client()
     if jira is None:
         return None
@@ -75,7 +75,6 @@ def get_transition_id_by_name(issue_key, action_key):
     transitions = jira.transitions(issue_key)
     logger.info(f"{issue_key} için mevcut transitionlar: {[t['name'] for t in transitions]}")
 
-    # action_key → olası transition isimleri
     possible_names = ACTION_TO_TRANSITION.get(action_key.lower(), [])
     if isinstance(possible_names, str):
         possible_names = [possible_names]
@@ -88,13 +87,8 @@ def get_transition_id_by_name(issue_key, action_key):
     return None
 
 
-
-
-
 def move_task(task_key, action):
-    """
-    Jira task'ını verilen AI aksiyonuna göre taşır.
-    """
+    """Jira task’ını verilen AI aksiyonuna göre taşır."""
     jira = get_jira_client()
     if jira is None:
         return False
@@ -113,9 +107,6 @@ def move_task(task_key, action):
         return False
 
 
-
-
-
 def add_comment(task_key, comment):
     """Bir Jira taskına yorum ekler."""
     jira = get_jira_client()
@@ -129,13 +120,25 @@ def add_comment(task_key, comment):
         logger.error(f"Yorum eklenemedi ({task_key}): {e}")
         return False
 
+
 def get_worker_tasks(jira_username):
-    issues = jira.search_issues(f'assignee={jira_username} AND status!=Done', maxResults=50)
+    """Kullanıcıya assign edilmiş ve Done olmayan Jira tasklarını döner."""
+    jira = get_jira_client()
+    if jira is None:
+        return []
+
+    jql = f'assignee = "{jira_username}" AND status != Done ORDER BY created DESC'
+    try:
+        issues = jira.search_issues(jql, maxResults=50, fields="summary,description,status")
+    except Exception as e:
+        logger.error(f"Worker taskları alınamadı: {e}")
+        return []
+
     tasks = []
     for issue in issues:
         tasks.append({
             "key": issue.key,
             "title": issue.fields.summary,
-            "description": issue.fields.description
+            "description": getattr(issue.fields, "description", "") or ""
         })
     return tasks
